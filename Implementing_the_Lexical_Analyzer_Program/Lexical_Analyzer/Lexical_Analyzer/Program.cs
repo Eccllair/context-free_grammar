@@ -1,235 +1,355 @@
-﻿class LexicalAnalyzer
+﻿using System;
+using System.Data;
+using System.Reflection;
+namespace Lexical_Analyzer
 {
-    static int MaxText = 1048576;                   //максимальная длинна текста ИМ
-    static int MaxLex = 1048576;                    //максимальная длинна лексемы
-    class IM                                        //текст ИМ
+    public class LexicalAnalyzer
     {
-        public char[] im = new char[MaxText];
-        public IM(string text = "") { this.im = text.ToCharArray(); }
-        public IM(char[] text) { this.im = text; }
-    }
-
-    class LEX                                       //лексема
-    {
-        public char[] lex = new char[MaxLex];
-        public LEX(string lex = "") { this.lex = lex.ToCharArray(); }
-        public LEX(char[] lex) { this.lex = lex; }
-
-        public void Clear() { for (int i = 0; i < MaxLex; i++) lex[i] = '\0'; }
-    }
-
-    IM t = new IM("");                              //Исходный модуль
-    (int row, int pos) p = (0, 0);                  //(pointer) Указатель на текущий символ
-
-    int typ;                                        //Тип лексемы
-    static LEX l;                                   //Изображение лексемы
-
-    void Next() //переход к следующей позиции исходного модуля
-    {
-        if (t.im[p.row + p.pos] == '\n') p.row++;
-        else p.pos++;
-    }
-    void Skip() //пропуск незначащих символов
-    {
-        while (t.im[p.row + p.pos] == ' ' ||
-            t.im[p.row + p.pos] == '\n' ||
-            t.im[p.row + p.pos] == '\t') Next();
-    }
-
-    int TypeKeyWord(LEX l)
-    {
-        switch (l.lex.ToString())
+        public class IM                                        //текст ИМ
         {
-            case "while": return 1;
-            case "int": return 2;
-            case "bool": return 3;
-            case "true": return 4;
-            case "false": return 5;
-        }
-        return 20;                                     //если не ключевое слово, то идентификатор
-    }
-
-    int Scaner(LEX l)
-    {
-        int i = 0;                                     //текущая длинна лексемы
-        l.Clear();                                     //очищаем поле лексемы
-        Skip();                                        //пропускаем незначащие символы
-        if (t.im[p.row + p.pos] == '\0') return 100;   //возврат кода конца исходного модуля
-        if (char.IsLetter(t.im[p.row + p.pos]) || t.im[p.row + p.pos] == '_')
-        {
-            while (char.IsLetter(t.im[p.row + p.pos]) ||
-                t.im[p.row + p.pos] == '_' ||
-                char.IsDigit(t.im[p.row + p.pos]))
+            public char[] im;
+            public IM(string text = "") { this.im = (text + '\0').ToCharArray(); }
+            public IM(char[] text)
             {
-                l.lex[i++] = t.im[p.row + p.pos];       //изменяем лексему
-                Next();                                 //передвигаем указатель
+                this.im = text;
+                Array.Resize(ref this.im, this.im.Length + 1);
+                this.im[this.im.Length - 1] = '\0';
             }
-            return TypeKeyWord(l);                      //Возвращение типа ключевого слова или идентификатора 
         }
-        if (char.IsDigit(t.im[p.row + p.pos]))
+
+        public class LexemeName : Attribute
         {
-            l.lex[i++] = t.im[p.row + p.pos];           //изменяем лексему
-            Next();                                     //переходим ко второму символу для проверки системы счисления
-            if (t.im[p.row + p.pos] == 'x')
+            public string name { get; set; }
+            public LexemeName(string name)
             {
-                l.lex[i++] = t.im[p.row + p.pos];       //изменяем лексему
-                Next();
-                while (char.IsDigit(t.im[p.row + p.pos]))
+                this.name = name;
+            }
+        }
+
+        public enum Lexeme                                      //список допустимых лексем
+        {
+            [LexemeName("while")] Twhile = 1,
+            [LexemeName("int")] Tint,
+            [LexemeName("bool")] Tbool,
+            [LexemeName("true")] Ttrue,
+            [LexemeName("false")] Tfalse,
+            [LexemeName("return")] Treturn,
+            [LexemeName("i")] Tiden = 20,
+            [LexemeName("constInt")] TconstInt = 30,
+            [LexemeName("constIntHex")] TconstIntHex,
+            [LexemeName(",")] Tcom = 40,
+            [LexemeName(";")] Tsem,
+            [LexemeName("{")] TbraceOpen,
+            [LexemeName("}")] TbraceClose,
+            [LexemeName("(")] TbrackOpen,
+            [LexemeName(")")] TbrackClose,
+            [LexemeName("+")] Tplus = 50,
+            [LexemeName("-")] Tminus,
+            [LexemeName("*")] Tmult,
+            [LexemeName("/")] Tdiv,
+            [LexemeName("%")] Tmod,
+            [LexemeName("=")] Tassign,
+            [LexemeName("==")] Teq,
+            [LexemeName("<")] Tlt,
+            [LexemeName("<=")] Tle,
+            [LexemeName("<")] Tgt,
+            [LexemeName("<=")] Tge,
+            [LexemeName("!=")] Tne = 70,
+            [LexemeName("&&")] Tand = 80,
+            [LexemeName("||")] Tor,
+            [LexemeName("!")] Tnot,
+            [LexemeName("end")] Tend = 100,
+            [LexemeName("err")] Terr = 200
+            //code to get name by Lexeme
+            //Lexeme a = Lexeme.Twhile;
+            //var name_a = a.GetType().GetCustomAttribute<LexemeName>()?.name;
+            //output => "while"
+        }
+
+        public Dictionary<string, Lexeme> KeyWords = new Dictionary<string, Lexeme>() {             //список ключевых слов
+            { "while", Lexeme.Twhile },
+            { "int", Lexeme.Tint },
+            { "bool", Lexeme.Tbool},
+            { "true", Lexeme.Ttrue },
+            { "false", Lexeme.Tfalse },
+            { "return", Lexeme.Treturn }
+        };
+
+        public class LEX                                        //лексема
+        {
+            public char[] lex;
+            public LEX(string lex = "") { this.lex = lex.ToCharArray(); }
+            public LEX(char[] lex) { this.lex = lex; }
+
+            public void Clear() { lex = Array.Empty<char>(); }
+
+            public void Append(char elem)
+            {
+                Array.Resize(ref lex, lex.Length + 1);
+                lex[lex.Length - 1] = elem;
+            }
+        }
+
+
+        public IM t;                                           //Исходный модуль
+        public int abs_p = 0;                                  //номер символа сканирования
+        public (int row, int pos) p = (1, 1);                  //(pointer) Указатель на текущий символ
+
+        public LEX le = new LEX();                      //Изображение лексемы
+
+        /// <summary>
+        /// конструкторы класса
+        /// </summary>
+        public LexicalAnalyzer(string text) { t = new IM(text); }
+        public LexicalAnalyzer(char[] text) { t = new IM(text); }
+        ///
+
+        void Next() //переход к следующей позиции исходного модуля
+        {
+            if (t.im[abs_p] == '\n')
+            {
+                p.row++;
+                p.pos = 0;
+            }
+            else p.pos++;
+            abs_p++;
+        }
+        void Skip() //пропуск незначащих символов
+        {
+            while (t.im[abs_p] == ' ' ||
+                t.im[abs_p] == '\n' ||
+                t.im[abs_p] == '\t' ||
+                t.im[abs_p] == '\r') Next();
+        }
+
+        public Lexeme Scaner(LEX l)
+        {
+            l.Clear();                                             //очищаем поле лексемы
+            Skip();                                                //пропускаем незначащие символы
+            if (t.im[abs_p] == '\0') return Lexeme.Tend;   //возврат конца исходного модуля
+            if (char.IsLetter(t.im[abs_p]) || t.im[abs_p] == '_')
+            {
+                while (char.IsLetter(t.im[abs_p]) ||
+                    t.im[abs_p] == '_' ||
+                    char.IsDigit(t.im[abs_p]))
                 {
-                    l.lex[i++] = t.im[p.row + p.pos];
-                    Next();
+                    l.Append(t.im[abs_p]);          //изменяем лексему
+                    Next();                                 //передвигаем указатель
                 }
-                return 31;
+                return KeyWords.ContainsKey(new string(l.lex)) ? KeyWords[new string(l.lex)] : Lexeme.Tiden;                      //Возвращение типа ключевого слова или идентификатора 
             }
-            else
+            if (char.IsDigit(t.im[abs_p]))
             {
-                while (char.IsDigit(t.im[p.row + p.pos]))
+                l.Append(t.im[abs_p]);
+                Next();                                     //переходим ко второму символу для проверки системы счисления
+                if (t.im[abs_p] == 'x')
                 {
-                    l.lex[i++] = t.im[p.row + p.pos];
+                    l.Append(t.im[abs_p]);       //изменяем лексему
                     Next();
+                    while (char.IsDigit(t.im[abs_p]))
+                    {
+                        l.Append(t.im[abs_p]);
+                        Next();
+                    }
+                    return Lexeme.TconstIntHex;
                 }
-                return 30;
+                else
+                {
+                    while (char.IsDigit(t.im[abs_p]))
+                    {
+                        l.Append(t.im[abs_p]);
+                        Next();
+                    }
+                    return Lexeme.TconstInt;
+                }
+
             }
-            
-        }
-        if (t.im[p.row + p.pos] == ',')
-        {
-            l.lex[i++] = t.im[p.row + p.pos];
-            Next();
-            return 40;
-        }
-        if (t.im[p.row + p.pos] == ';')
-        {
-            l.lex[i++] = t.im[p.row + p.pos];
-            Next();
-            return 41;
-        }
-        if (t.im[p.row + p.pos] == '{')
-        {
-            l.lex[i++] = t.im[p.row + p.pos];
-            Next();
-            return 42;
-        }
-        if (t.im[p.row + p.pos] == '}')
-        {
-            l.lex[i++] = t.im[p.row + p.pos];
-            Next();
-            return 43;
-        }
-        if (t.im[p.row + p.pos] == '(')
-        {
-            l.lex[i++] = t.im[p.row + p.pos];
-            Next();
-            return 44;
-        }
-        if (t.im[p.row + p.pos] == ')')
-        {
-            l.lex[i++] = t.im[p.row + p.pos];
-            Next();
-            return 45;
-        }
-        if (t.im[p.row + p.pos] == '+')
-        {
-            l.lex[i++] = t.im[p.row + p.pos];
-            Next();
-            return 50;
-        }
-        if (t.im[p.row + p.pos] == '-')
-        {
-            l.lex[i++] = t.im[p.row + p.pos];
-            Next();
-            return 51;
-        }
-        if (t.im[p.row + p.pos] == '*')
-        {
-            l.lex[i++] = t.im[p.row + p.pos];
-            Next();
-            return 52;
-        }
-        if (t.im[p.row + p.pos] == '/')
-        {
-            l.lex[i++] = t.im[p.row + p.pos];
-            Next();
-            return 53;
-        }
-        if (t.im[p.row + p.pos] == '%')
-        {
-            l.lex[i++] = t.im[p.row + p.pos];
-            Next();
-            return 54;
-        }
-        if (t.im[p.row + p.pos] == '=')
-        {
-            l.lex[i++] = t.im[p.row + p.pos];
-            Next();
-            if (t.im[p.row + p.pos] == '=')
+            if (t.im[abs_p] == ',')
             {
-                l.lex[i++] = t.im[p.row + p.pos];
+                l.Append(t.im[abs_p]);
                 Next();
-                return 56;
+                return Lexeme.Tcom;
             }
-            else return 55;
-        }
-        if (t.im[p.row + p.pos] == '<')
-        {
-            l.lex[i++] = t.im[p.row + p.pos];
-            Next();
-            if (t.im[p.row + p.pos] == '=')
+            if (t.im[abs_p] == ';')
             {
-                l.lex[i++] = t.im[p.row + p.pos];
+                l.Append(t.im[abs_p]);
                 Next();
-                return 58;
+                return Lexeme.Tsem;
             }
-            else return 57;
-        }
-        if (t.im[p.row + p.pos] == '>')
-        {
-            l.lex[i++] = t.im[p.row + p.pos];
-            Next();
-            if (t.im[p.row + p.pos] == '=')
+            if (t.im[abs_p] == '{')
             {
-                l.lex[i++] = t.im[p.row + p.pos];
+                l.Append(t.im[abs_p]);
                 Next();
-                return 59;
+                return Lexeme.TbraceOpen;
             }
-            else return 60;
-        }
-        if (t.im[p.row + p.pos] == '!')
-        {
-            l.lex[i++] = t.im[p.row + p.pos];
-            Next();
-            if (t.im[p.row + p.pos] == '=')
+            if (t.im[abs_p] == '}')
             {
-                l.lex[i++] = t.im[p.row + p.pos];
+                l.Append(t.im[abs_p]);
                 Next();
-                return 70;
+                return Lexeme.TbraceClose;
             }
-            else return 82;
-        }
-        if (t.im[p.row + p.pos] == '&')
-        {
-            l.lex[i++] = t.im[p.row + p.pos];
-            Next();
-            if (t.im[p.row + p.pos] == '&')
+            if (t.im[abs_p] == '(')
             {
-                l.lex[i++] = t.im[p.row + p.pos];
+                l.Append(t.im[abs_p]);
                 Next();
-                return 80;
+                return Lexeme.TbrackOpen;
             }
-            else return 200;
-        }
-        if (t.im[p.row + p.pos] == '|')
-        {
-            l.lex[i++] = t.im[p.row + p.pos];
-            Next();
-            if (t.im[p.row + p.pos] == '|')
+            if (t.im[abs_p] == ')')
             {
-                l.lex[i++] = t.im[p.row + p.pos];
+                l.Append(t.im[abs_p]);
                 Next();
-                return 81;
+                return Lexeme.TbrackClose;
             }
-            else return 200;
+            if (t.im[abs_p] == '+')
+            {
+                l.Append(t.im[abs_p]);
+                Next();
+                return Lexeme.Tplus;
+            }
+            if (t.im[abs_p] == '-')
+            {
+                l.Append(t.im[abs_p]);
+                Next();
+                return Lexeme.Tminus;
+            }
+            if (t.im[abs_p] == '*')
+            {
+                l.Append(t.im[abs_p]);
+                Next();
+                return Lexeme.Tmult;
+            }
+            if (t.im[abs_p] == '/')
+            {
+                l.Append(t.im[abs_p]);
+                Next();
+                return Lexeme.Tdiv;
+            }
+            if (t.im[abs_p] == '%')
+            {
+                l.Append(t.im[abs_p]);
+                Next();
+                return Lexeme.Tmod;
+            }
+            if (t.im[abs_p] == '=')
+            {
+                l.Append(t.im[abs_p]);
+                Next();
+                if (t.im[abs_p] == '=')
+                {
+                    l.Append(t.im[abs_p]);
+                    Next();
+                    return Lexeme.Teq;
+                }
+                else return Lexeme.Tassign;
+            }
+            if (t.im[abs_p] == '<')
+            {
+                l.Append(t.im[abs_p]);
+                Next();
+                if (t.im[abs_p] == '=')
+                {
+                    l.Append(t.im[abs_p]);
+                    Next();
+                    return Lexeme.Tle;
+                }
+                else return Lexeme.Tlt;
+            }
+            if (t.im[abs_p] == '>')
+            {
+                l.Append(t.im[abs_p]);
+                Next();
+                if (t.im[abs_p] == '=')
+                {
+                    l.Append(t.im[abs_p]);
+                    Next();
+                    return Lexeme.Tge;
+                }
+                else return Lexeme.Tgt;
+            }
+            if (t.im[abs_p] == '!')
+            {
+                l.Append(t.im[abs_p]);
+                Next();
+                if (t.im[abs_p] == '=')
+                {
+                    l.Append(t.im[abs_p]);
+                    Next();
+                    return Lexeme.Tne;
+                }
+                else return Lexeme.Tnot;
+            }
+            if (t.im[abs_p] == '&')
+            {
+                l.Append(t.im[abs_p]);
+                Next();
+                if (t.im[abs_p] == '&')
+                {
+                    l.Append(t.im[abs_p]);
+                    Next();
+                    return Lexeme.Tand;
+                }
+                else return Lexeme.Terr;
+            }
+            if (t.im[abs_p] == '|')
+            {
+                l.Append(t.im[abs_p]);
+                Next();
+                if (t.im[abs_p] == '|')
+                {
+                    l.Append(t.im[abs_p]);
+                    Next();
+                    return Lexeme.Tor;
+                }
+                else return Lexeme.Terr;
+            }
+            return Lexeme.Terr;                                     //возвращает код ошибки, если не найдено соответствия в языке
         }
-        return 200;                                     //возвращает код ошибки, если не найдено соответствия в языке
+
+        public (Lexeme[] types, string[] words) StartScan()
+        {
+            Lexeme typ = 0;
+            Lexeme[] result = Array.Empty<Lexeme>();
+            string[] output = Array.Empty<string>();
+            while (typ != Lexeme.Tend)
+            {
+                Array.Resize(ref result, result.Length + 1);
+                if (typ == Lexeme.Terr) throw new Exception(
+                    $"error at lexem \"{new string(le.lex != Array.Empty<char>() ? le.lex : new char[] { t.im[abs_p] })}\"" +
+                    $" on row {p.row}");
+                typ = Scaner(le);
+                result[result.Length - 1] = typ;
+
+                Array.Resize(ref output, output.Length + 1);
+                output[output.Length - 1] = new string(le.lex);
+            }
+            return (result, output);
+        }
+    }
+
+    //проверка
+    class Test
+    {
+        //static LexicalAnalyzer lex_analyzer = new LexicalAnalyzer(File.ReadAllText(@"D:\\projects\\context-free_grammar\\Implementing_the_Lexical_Analyzer_Program\\Lexical_Analyzer\\Lexical_Analyzer\\main.cpp"));
+        static SyntacticalAnalyzer syn_analyzer = new SyntacticalAnalyzer(File.ReadAllText(@"D:\\projects\\context-free_grammar\\Implementing_the_Lexical_Analyzer_Program\\Lexical_Analyzer\\Lexical_Analyzer\\mainErr.cpp"));
+        static void Main(string[] args)
+        {
+            try
+            {
+                //(LexicalAnalyzer.Lexeme[] types, string[] words) test = lex_analyzer.StartScan();
+                if (syn_analyzer.Analyze()) Console.WriteLine("проблем не обнаружено");
+                //Console.WriteLine("Text");
+                //foreach (string word in test.words) Console.Write(word + " ");
+                //Console.WriteLine("\nTypes");
+                //foreach (int type in test.types) Console.Write(type + " ");
+            }
+            catch (AnalyzeException e)
+            {
+                Console.WriteLine(e.Message);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+            }
+        }
     }
 }
